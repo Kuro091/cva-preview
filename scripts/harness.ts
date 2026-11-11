@@ -42,9 +42,14 @@ writeFileSync(
         --vscode-descriptionForeground: #9d9d9d; --vscode-dropdown-background: #313131; --vscode-dropdown-foreground: #cccccc;
         --vscode-dropdown-border: #3c3c3c; --vscode-input-background: #313131; --vscode-input-foreground: #cccccc;
         --vscode-focusBorder: #0078d4; --vscode-panel-border: #2b2b2b; --vscode-errorForeground: #f85149;
+        --vscode-font-family: system-ui, sans-serif; --vscode-font-size: 13px; --vscode-foreground: #cccccc;
+        --vscode-button-background: #0078d4; --vscode-button-foreground: #ffffff; --vscode-button-secondaryBackground: #313131;
+        --vscode-button-secondaryForeground: #cccccc; --vscode-settings-dropdownBackground: #313131; --vscode-settings-dropdownBorder: #3c3c3c;
+        --vscode-settings-textInputBackground: #313131; --vscode-settings-textInputBorder: #3c3c3c; --vscode-icon-foreground: #cccccc;
       }
       body { margin: 0; background: #1f1f1f; color: #cccccc; font: 13px system-ui, sans-serif; }
     </style>
+    <link rel="stylesheet" href="codicon.css" id="vscode-codicon-stylesheet" />
     <style>${readFileSync(path.join(dist, "webview.css"), "utf8")}</style>
     <script>
       window.copied = [];

@@ -26,6 +26,8 @@ const contexts = await Promise.all([
 
 await mkdir("dist", { recursive: true });
 await copyFile("src/webview.css", "dist/webview.css");
+await copyFile("node_modules/@vscode/codicons/dist/codicon.css", "dist/codicon.css");
+await copyFile("node_modules/@vscode/codicons/dist/codicon.ttf", "dist/codicon.ttf");
 
 if (watch) {
   await Promise.all(contexts.map((context) => context.watch()));

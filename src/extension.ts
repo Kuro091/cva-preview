@@ -210,6 +210,7 @@ class PreviewPanel implements vscode.Disposable {
     const nonce = randomBytes(16).toString("base64");
     const script = webview.asWebviewUri(vscode.Uri.joinPath(distUri, "webview.js"));
     const stylesheet = webview.asWebviewUri(vscode.Uri.joinPath(distUri, "webview.css"));
+    const codicons = webview.asWebviewUri(vscode.Uri.joinPath(distUri, "codicon.css"));
     const csp = [
       "default-src 'none'",
       `style-src ${webview.cspSource} 'unsafe-inline'`,
@@ -222,6 +223,7 @@ class PreviewPanel implements vscode.Disposable {
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="Content-Security-Policy" content="${csp}" />
+    <link rel="stylesheet" href="${codicons}" id="vscode-codicon-stylesheet" />
     <link rel="stylesheet" href="${stylesheet}" />
   </head>
   <body>

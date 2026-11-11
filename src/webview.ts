@@ -1,3 +1,8 @@
+import "@vscode-elements/elements/dist/vscode-button/index.js";
+import "@vscode-elements/elements/dist/vscode-option/index.js";
+import "@vscode-elements/elements/dist/vscode-single-select/index.js";
+import "@vscode-elements/elements/dist/vscode-textfield/index.js";
+import "@vscode-elements/elements/dist/vscode-toolbar-button/index.js";
 import { cva } from "class-variance-authority";
 import type { CvaDefinition } from "./parse";
 import { FORCED_PSEUDO_CLASSES, type FromWebview, forcedAttribute, type ToWebview } from "./protocol";
@@ -19,12 +24,10 @@ interface Settings {
   element: ElementKind;
   text: string;
   wrapper: string;
+  background: Background;
 }
 
-interface SavedState {
-  background: Background;
-  byDefinition: Record<string, Settings>;
-}
+type SavedState = Record<string, Settings>;
 
 interface PreviewState {
   id: string;
@@ -69,8 +72,10 @@ const SHADOW_BASE_CSS = `
 const vscode = acquireVsCodeApi();
 const app = document.body.appendChild(document.createElement("main"));
 const propertyStyle = document.head.appendChild(document.createElement("style"));
-let saved: SavedState = vscode.getState() ?? { background: "white", byDefinition: {} };
+let saved: SavedState = vscode.getState() ?? {};
 let selectedName = "";
+// The extension compiles wrapper classes on request, so it is told only when they change.
+let compiledWrapper = "";
 
 window.addEventListener("message", (event: MessageEvent<ToWebview>) => {
   selectedName = event.data.selected;
@@ -87,40 +92,55 @@ function render(view: ToWebview): void {
   }
   propertyStyle.textContent = view.propertyCss;
   const settings = settingsFor(definition);
+  if (settings.wrapper !== compiledWrapper) {
+    compiledWrapper = settings.wrapper;
+    vscode.postMessage({ type: "extraClasses", classes: settings.wrapper });
+  }
   const states = detectStates(definition, settings.element);
-  app.append(toolbar(view, definition, states, settings));
+  const canvasSlot = element("div");
+  const drawCanvas = () => canvasSlot.replaceChildren(canvas(view, definition, states, settingsFor(definition)));
+
+  app.append(controls(view, definition, states, settings, drawCanvas));
   for (const problem of definition.problems) {
     app.append(element("p", { className: "notice" }, problem));
   }
   if (view.error) {
     app.append(element("p", { className: "notice error" }, view.error));
   }
-  app.append(canvas(view, definition, states, settings));
+  app.append(canvasSlot);
+  drawCanvas();
 }
 
-function settingsFor(definition: CvaDefinition): Settings {
+function defaultSettings(definition: CvaDefinition): Settings {
   const keys = Object.keys(definition.variants);
-  const axes = [...keys, STATE_AXIS, NO_AXIS];
-  const stored = saved.byDefinition[definition.name];
-  const defaults: Settings = {
+  return {
     rows: keys[0] ?? NO_AXIS,
     columns: keys[1] ?? STATE_AXIS,
-    fixed: {},
+    fixed: Object.fromEntries(keys.map((key) => [key, definition.defaultVariants[key] ?? UNSET])),
     state: REST,
     element: guessElement(definition.name),
     text: "",
     wrapper: "",
+    background: "white",
   };
+}
+
+function settingsFor(definition: CvaDefinition): Settings {
+  const defaults = defaultSettings(definition);
+  const stored = saved[definition.name];
+  const axes = [...Object.keys(definition.variants), STATE_AXIS, NO_AXIS];
   const storedAxesExist = stored && axes.includes(stored.rows) && axes.includes(stored.columns);
-  const settings = storedAxesExist ? { ...defaults, ...stored, fixed: { ...stored.fixed } } : defaults;
-  for (const key of keys) {
-    const values = Object.keys(definition.variants[key]);
-    const fixedValueExists = settings.fixed[key] === UNSET || values.includes(settings.fixed[key]);
-    if (!fixedValueExists) {
-      settings.fixed[key] = definition.defaultVariants[key] ?? UNSET;
+  if (!storedAxesExist) {
+    return defaults;
+  }
+  const fixed = { ...defaults.fixed };
+  for (const [key, value] of Object.entries(stored.fixed)) {
+    const valueStillExists = key in definition.variants && (value === UNSET || value in definition.variants[key]);
+    if (valueStillExists) {
+      fixed[key] = value;
     }
   }
-  return settings;
+  return { ...defaults, ...stored, fixed };
 }
 
 function guessElement(name: string): ElementKind {
@@ -133,86 +153,116 @@ function guessElement(name: string): ElementKind {
   return "span";
 }
 
-function toolbar(view: ToWebview, definition: CvaDefinition, states: PreviewState[], settings: Settings): HTMLElement {
+function controls(
+  view: ToWebview,
+  definition: CvaDefinition,
+  states: PreviewState[],
+  settings: Settings,
+  drawCanvas: () => void,
+): HTMLElement {
   const keys = Object.keys(definition.variants);
+  const save = (change: Partial<Settings>) => {
+    saved = { ...saved, [definition.name]: { ...settings, ...change } };
+    vscode.setState(saved);
+  };
+  const apply = (change: Partial<Settings>) => {
+    save(change);
+    render(view);
+  };
   const axisOptions: Array<[string, string]> = [
     ...keys.map((key): [string, string] => [key, key]),
     [STATE_AXIS, "State"],
     [NO_AXIS, "Nothing"],
   ];
-  const update = (change: Partial<Settings>) => {
-    saved = { ...saved, byDefinition: { ...saved.byDefinition, [definition.name]: { ...settings, ...change } } };
+  // Rows and columns showing the same thing would only repeat one row, so picking the other axis's value swaps them.
+  const pickAxis = (axis: "rows" | "columns", value: string) => {
+    const other = axis === "rows" ? "columns" : "rows";
+    const takesOtherAxis = value === settings[other] && value !== NO_AXIS;
+    apply(takesOtherAxis ? { [axis]: value, [other]: settings[axis] } : { [axis]: value });
+  };
+  const swap = element("vscode-toolbar-button", { icon: "arrow-swap", label: "Swap rows and columns" });
+  swap.title = "Swap rows and columns";
+  swap.addEventListener("click", () => apply({ rows: settings.columns, columns: settings.rows }));
+
+  const isDefault = JSON.stringify(settings) === JSON.stringify(defaultSettings(definition));
+  const reset = element("vscode-button", { secondary: true, icon: "discard", disabled: isDefault }, "Reset");
+  reset.addEventListener("click", () => {
+    const { [definition.name]: _removed, ...others } = saved;
+    saved = others;
     vscode.setState(saved);
     render(view);
-  };
-  const bar = element("div", { className: "toolbar" });
+  });
 
-  if (view.definitions.length > 1) {
-    bar.append(
-      select(
-        "Definition",
-        view.definitions.map((candidate) => [candidate.name, candidate.name]),
-        definition.name,
-        (name) => {
-          selectedName = name;
-          vscode.postMessage({ type: "select", name });
-          render(view);
-        },
-      ),
-    );
-  }
-  bar.append(
-    select("Rows", axisOptions, settings.rows, (rows) => update({ rows })),
-    select("Columns", axisOptions, settings.columns, (columns) => update({ columns })),
-  );
-  for (const key of keys.filter((candidate) => candidate !== settings.rows && candidate !== settings.columns)) {
-    const values = Object.keys(definition.variants[key]).map((value): [string, string] => [value, value]);
-    const options: Array<[string, string]> = key in definition.defaultVariants ? values : [[UNSET, "Unset"], ...values];
-    bar.append(
-      select(key, options, settings.fixed[key], (value) => update({ fixed: { ...settings.fixed, [key]: value } })),
-    );
-  }
+  const valueFields = keys
+    .filter((key) => key !== settings.rows && key !== settings.columns)
+    .map((key) => {
+      const values = Object.keys(definition.variants[key]).map((value): [string, string] => [
+        value,
+        value === definition.defaultVariants[key] ? `${value} (default)` : value,
+      ]);
+      const options: Array<[string, string]> = key in definition.defaultVariants ? values : [[UNSET, "Unset"], ...values];
+      return field(key, select(options, settings.fixed[key], (value) => apply({ fixed: { ...settings.fixed, [key]: value } })));
+    });
   const stateOnAxis = settings.rows === STATE_AXIS || settings.columns === STATE_AXIS;
   if (!stateOnAxis && states.length > 1) {
-    bar.append(
-      select(
-        "State",
-        states.map((state) => [state.id, state.id]),
-        settings.state,
-        (state) => update({ state }),
-      ),
-    );
+    const stateOptions = states.map(({ id }): [string, string] => [id, id === REST ? `${id} (default)` : id]);
+    valueFields.push(field("State", select(stateOptions, settings.state, (state) => apply({ state }))));
   }
-  bar.append(
-    select(
-      "Element",
-      ELEMENT_OPTIONS,
-      settings.element,
-      (kind) => update({ element: kind }),
+
+  const text = textField(settings.text, "Value name");
+  text.addEventListener("input", () => {
+    save({ text: text.value });
+    drawCanvas();
+  });
+  const wrapper = textField(settings.wrapper, "Classes; groups each row");
+  wrapper.addEventListener("change", () => apply({ wrapper: wrapper.value.trim() }));
+
+  const heading =
+    view.definitions.length > 1
+      ? select(
+          view.definitions.map(({ name }): [string, string] => [name, name]),
+          definition.name,
+          (name) => {
+            selectedName = name;
+            vscode.postMessage({ type: "select", name });
+            render(view);
+          },
+        )
+      : element("strong", {}, definition.name);
+
+  return element(
+    "div",
+    { className: "controls" },
+    element("div", { className: "controls-header" }, heading, reset),
+    ...group(
+      "Grid",
+      field("Rows", select(axisOptions, settings.rows, (value) => pickAxis("rows", value))),
+      swap,
+      field("Columns", select(axisOptions, settings.columns, (value) => pickAxis("columns", value))),
     ),
-    textField("Text", settings.text, "Value name", (text) => update({ text })),
-    textField("Wrapper classes", settings.wrapper, "Groups each row", (wrapper) => {
-      vscode.postMessage({ type: "extraClasses", classes: wrapper });
-      update({ wrapper });
-    }),
-    select(
-      "Background",
-      BACKGROUND_OPTIONS,
-      saved.background,
-      (background) => {
-        saved = { ...saved, background };
-        vscode.setState(saved);
-        render(view);
-      },
+    ...(valueFields.length > 0 ? group("Fixed", ...valueFields) : []),
+    ...group(
+      "Render",
+      field("Element", select(ELEMENT_OPTIONS, settings.element, (kind) => apply({ element: kind }))),
+      field("Text", text),
+      field("Wrapper", wrapper),
+      field("Background", select(BACKGROUND_OPTIONS, settings.background, (background) => apply({ background }))),
     ),
   );
-  return bar;
+}
+
+function group(label: string, ...children: HTMLElement[]): HTMLElement[] {
+  return [element("span", { className: "group-label" }, label), element("div", { className: "group" }, ...children)];
+}
+
+function field(label: string, control: HTMLElement): HTMLElement {
+  return element("div", { className: "field" }, element("span", {}, label), control);
 }
 
 function canvas(view: ToWebview, definition: CvaDefinition, states: PreviewState[], settings: Settings): HTMLElement {
   const host = element("section", { className: "canvas" });
-  host.style.background = BACKGROUNDS[saved.background];
-  host.dataset.background = saved.background;
+  host.style.background = BACKGROUNDS[settings.background];
+  host.dataset.background = settings.background;
   const root = host.attachShadow({ mode: "open" });
   root.append(element("style", { textContent: SHADOW_BASE_CSS + view.css }));
 
@@ -383,26 +433,23 @@ function stateFor(prefix: string): PreviewState | undefined {
 }
 
 function select<Value extends string>(
-  label: string,
   options: Array<[Value, string]>,
   value: Value,
   onChange: (value: Value) => void,
 ): HTMLElement {
   const input = element(
-    "select",
+    "vscode-single-select",
     {},
     ...options.map(([optionValue, optionLabel]) =>
-      element("option", { value: optionValue, selected: optionValue === value }, optionLabel),
+      element("vscode-option", { value: optionValue, selected: optionValue === value }, optionLabel),
     ),
   );
   input.addEventListener("change", () => onChange(options[input.selectedIndex][0]));
-  return element("label", { className: "control" }, element("span", {}, label), input);
+  return input;
 }
 
-function textField(label: string, value: string, placeholder: string, onChange: (value: string) => void): HTMLElement {
-  const input = element("input", { value, placeholder });
-  input.addEventListener("change", () => onChange(input.value));
-  return element("label", { className: "control" }, element("span", {}, label), input);
+function textField(value: string, placeholder: string) {
+  return element("vscode-textfield", { value, placeholder });
 }
 
 function element<Tag extends keyof HTMLElementTagNameMap>(
