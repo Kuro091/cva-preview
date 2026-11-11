@@ -1,5 +1,7 @@
 # CVA Preview
 
+Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Minhh.cva-preview) or [Open VSX](https://open-vsx.org/extension/Minhh/cva-preview) (Cursor, VSCodium).
+
 Renders every variant of a [class-variance-authority](https://cva.style) definition next to the code, styled with the project's own Tailwind 4 theme.
 
 ![Button variants by state](images/screenshot.png)
@@ -28,4 +30,5 @@ pnpm typecheck
 pnpm harness <file.ts> <entry.css>   # writes dist/harness-<file>.html for a browser check
 pnpm package                         # cva-preview-<version>.vsix
 code --install-extension cva-preview-0.1.0.vsix
+OVSX_PAT=… pnpm publish:openvsx      # Open VSX; the VS Code Marketplace takes the .vsix by upload
 ```
