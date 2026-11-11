@@ -8,11 +8,11 @@
   "icon": "images/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/vincentluuc/cva-preview.git"
+    "url": "https://github.com/Kuro091/cva-preview.git"
   },
-  "homepage": "https://github.com/vincentluuc/cva-preview#readme",
+  "homepage": "https://github.com/Kuro091/cva-preview#readme",
   "bugs": {
-    "url": "https://github.com/vincentluuc/cva-preview/issues"
+    "url": "https://github.com/Kuro091/cva-preview/issues"
   },
   "keywords": [
     "cva",
