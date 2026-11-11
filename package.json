@@ -1,0 +1,82 @@
+{
+  "name": "cva-preview",
+  "displayName": "CVA Preview",
+  "description": "Renders every variant of a class-variance-authority definition with the project's own Tailwind theme.",
+  "version": "0.1.0",
+  "publisher": "kuro091",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vincentluuc/cva-preview.git"
+  },
+  "homepage": "https://github.com/vincentluuc/cva-preview#readme",
+  "bugs": {
+    "url": "https://github.com/vincentluuc/cva-preview/issues"
+  },
+  "keywords": [
+    "cva",
+    "class-variance-authority",
+    "tailwind",
+    "tailwindcss",
+    "variants",
+    "preview",
+    "design system"
+  ],
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "cvaPreview.showAtCursor",
+        "title": "Preview cva variants at cursor",
+        "category": "CVA Preview"
+      }
+    ],
+    "configuration": {
+      "title": "CVA Preview",
+      "properties": {
+        "cvaPreview.cssEntry": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Tailwind entry stylesheet, relative to the workspace folder (for example `src/styles.css`). When empty, the nearest `.css` file that imports `tailwindcss` is used."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "harness": "node scripts/build.mjs && esbuild scripts/harness.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/harness.mjs && node dist/harness.mjs",
+    "package": "pnpm build && vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "@babel/parser": "8.1.0",
+    "class-variance-authority": "0.7.1"
+  },
+  "devDependencies": {
+    "@babel/types": "8.1.0",
+    "@tailwindcss/node": "4.3.5",
+    "@types/node": "26.6.6",
+    "@types/vscode": "1.100.0",
+    "@vscode/vsce": "4.1.0",
+    "esbuild": "0.28.2",
+    "tailwindcss": "4.3.5",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
+  }
+}
